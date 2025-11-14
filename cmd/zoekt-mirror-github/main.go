@@ -132,7 +132,7 @@ func main() {
 	if !*forks {
 		trimmed := repos[:0]
 		for _, r := range repos {
-			if r.Fork == nil || !*r.Fork {
+			if !r.GetFork() {
 				trimmed = append(trimmed, r)
 			}
 		}
@@ -147,7 +147,7 @@ func main() {
 	{
 		trimmed := repos[:0]
 		for _, r := range repos {
-			if filter.Include(*r.Name) {
+			if filter.Include(r.GetName()) {
 				trimmed = append(trimmed, r)
 			}
 		}
@@ -194,7 +194,7 @@ func newOAuthClient(token *string) *http.Client {
 func deleteStaleRepos(destDir string, filter *gitindex.Filter, repos []*github.Repository, user string) error {
 	var baseURL string
 	if len(repos) > 0 {
-		baseURL = *repos[0].HTMLURL
+		baseURL = repos[0].GetHTMLURL()
 	} else {
 		return nil
 	}
@@ -206,7 +206,7 @@ func deleteStaleRepos(destDir string, filter *gitindex.Filter, repos []*github.R
 
 	names := map[string]struct{}{}
 	for _, r := range repos {
-		u, err := url.Parse(*r.HTMLURL)
+		u, err := url.Parse(r.GetHTMLURL())
 		if err != nil {
 			return err
 		}
@@ -234,7 +234,7 @@ func hasIntersection(s1, s2 []string) bool {
 
 func filterRepositories(repos []*github.Repository, include []string, exclude []string, noArchived bool, visibility []string) (filteredRepos []*github.Repository) {
 	for _, repo := range repos {
-		if noArchived && *repo.Archived {
+		if noArchived && repo.GetArchived() {
 			continue
 		}
 		if len(visibility) > 0 && !hasIntersection(visibility, []string{repo.GetVisibility()}) {
@@ -301,27 +301,27 @@ func itoa(p *int) string {
 
 func cloneRepos(destDir string, repos []*github.Repository) error {
 	for _, r := range repos {
-		host, err := url.Parse(*r.HTMLURL)
+		host, err := url.Parse(r.GetHTMLURL())
 		if err != nil {
 			return err
 		}
 
 		config := map[string]string{
 			"zoekt.web-url-type": "github",
-			"zoekt.web-url":      *r.HTMLURL,
-			"zoekt.name":         filepath.Join(host.Hostname(), *r.FullName),
+			"zoekt.web-url":      r.GetHTMLURL(),
+			"zoekt.name":         filepath.Join(host.Hostname(), r.GetFullName()),
 
 			"zoekt.github-stars":       itoa(r.StargazersCount),
 			"zoekt.github-watchers":    itoa(r.WatchersCount),
 			"zoekt.github-subscribers": itoa(r.SubscribersCount),
 			"zoekt.github-forks":       itoa(r.ForksCount),
 
-			"zoekt.archived":   marshalBool(r.Archived != nil && *r.Archived),
-			"zoekt.fork":       marshalBool(r.Fork != nil && *r.Fork),
-			"zoekt.public":     marshalBool(r.Private == nil || !*r.Private),
+			"zoekt.archived":   marshalBool(r.GetArchived()),
+			"zoekt.fork":       marshalBool(r.GetFork()),
+			"zoekt.public":     marshalBool(!r.GetPrivate()),
 			"zoekt.visibility": r.GetVisibility(),
 		}
-		dest, err := gitindex.CloneRepo(destDir, *r.FullName, *r.CloneURL, config)
+		dest, err := gitindex.CloneRepo(destDir, r.GetFullName(), r.GetCloneURL(), config)
 		if err != nil {
 			return err
 		}
